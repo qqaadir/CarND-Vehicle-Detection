@@ -5,15 +5,20 @@ import pickle
 import cv2
 from features import *
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 import glob
+from sklearn.svm import LinearSVC
+import time
+import pickle
 
 #dist_pickle = pickle.load( open("svc_pickle.p", "rb" ) )
 #svc = dist_pickle["svc"]
 orient = 18
 pix_per_cell = 8
 cell_per_block = 2
-spatial_size = 16
+spatial_size = (16,16)
 hist_bins = 48
+hist_range = (0,256)
 
 #img = mpimg.imread('test_image.jpg')
 
@@ -109,16 +114,40 @@ scale = 1
 if __name__ == "__main__":
 
     v_names, nv_names = load_training_images_names()
-    v_imgs = []
-    nv_imgs = []
-    for path in v_names:
-        v_imgs.append(cv2.imread(path))
-    for path in nv_names:
-        nv_imgs.append(cv2.imread(path))
-
+    features_cars = extract_features(v_names,cspace='BGR2YCrCb',spatial_size=spatial_size,hist_bins=hist_bins,hist_range=hist_range,
+                                        orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block)
+    features_noncars = extract_features(nv_names,cspace='BGR2YCrCb',spatial_size=spatial_size,hist_bins=hist_bins,hist_range=hist_range,
+                                        orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block)
     
-    #X_scaler = StandardScaler().fit(X)
+    print(len(features_cars))
+    X = np.vstack((features_cars,features_noncars)).astype(np.float64)
+    print(len(X))
+    X_scaler = StandardScaler().fit(X)
+    scaled_X = X_scaler.transform(X)
+    print(np.mean(scaled_X))
 
+    # Define the labels vector
+    y = np.hstack((np.ones(len(features_cars)), np.zeros(len(features_noncars))))
+
+    # Split up data into randomized training and test sets
+    rand_state = np.random.randint(0, 100)
+    X_train, X_test, y_train, y_test = train_test_split(scaled_X, y, test_size=0.2, random_state=rand_state)
+
+    svc = LinearSVC()
+    # Check the training time for the SVC
+    t=time.time()
+    svc.fit(X_train, y_train)
+    t2 = time.time()
+    print(round(t2-t, 2), 'Seconds to train SVC...')
+
+    print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
+
+    t=time.time()
+    n_predict = 10
+    print('My SVC predicts: ', svc.predict(X_test[0:n_predict]))
+    print('For these',n_predict, 'labels: ', y_test[0:n_predict])
+    t2 = time.time()
+    print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
 #out_img = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
 
 #plt.imshow(out_img)
