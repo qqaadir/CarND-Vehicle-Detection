@@ -10,6 +10,7 @@ import glob
 from sklearn.svm import LinearSVC
 import time
 import pickle
+from sklearn.externals import joblib
 
 #dist_pickle = pickle.load( open("svc_pickle.p", "rb" ) )
 #svc = dist_pickle["svc"]
@@ -95,7 +96,7 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, ce
             hist_features = color_hist(subimg, nbins=hist_bins)
 
             # Scale features and make a prediction
-            test_features = X_scaler.transform(np.concatenate((spatial_features, hist_features, hog_features)))    
+            test_features = X_scaler.transform(np.concatenate((spatial_features, hist_features, hog_features)).reshape(1,-1))    
             #test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))    
             test_prediction = svc.predict(test_features)
             
@@ -106,14 +107,8 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, ce
                 cv2.rectangle(draw_img,(xbox_left, ytop_draw+ystart),(xbox_left+win_draw,ytop_draw+win_draw+ystart),(0,0,255),6) 
                 
     return draw_img
-    
-ystart = 400
-ystop = 656
-scale = 1
 
-
-if __name__ == "__main__":
-
+def train():
     v_names, nv_names = load_training_images_names()
     features_cars = extract_features(v_names,cspace='BGR2YCrCb',spatial_size=spatial_size,hist_bins=hist_bins,hist_range=hist_range,
                                         orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block, hog_channel=hog_channel)
@@ -139,6 +134,10 @@ if __name__ == "__main__":
     t=time.time()
     svc.fit(X_train, y_train)
     t2 = time.time()
+
+    joblib.dump({"svc":svc,"scaler":X_scaler}, 'svc.pkl') 
+    #joblib.dump(X_scaler, 'xScalar.pkl') 
+
     print(round(t2-t, 2), 'Seconds to train SVC...')
 
     print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
@@ -150,15 +149,22 @@ if __name__ == "__main__":
     t2 = time.time()
     print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
 
+    
+ystart = 400
+ystop = 656
+scale = 1
 
+
+if __name__ == "__main__":
+    #train()
+
+
+    dict_svc= joblib.load("svc.pkl")
+    svc = dict_svc["svc"]
+    X_scaler = dict_svc["scaler"]
     files = glob.glob('test_images/*.jpg')
     for x in files:
         img = cv2.imread(x)
         out_img = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
         cv2.imshow("predict",out_img)
         cv2.waitKey(0)
-
-
-#out_img = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-
-#plt.imshow(out_img)
