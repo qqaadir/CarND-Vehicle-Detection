@@ -19,6 +19,7 @@ cell_per_block = 2
 spatial_size = (16,16)
 hist_bins = 48
 hist_range = (0,256)
+hog_channel = "ALL"
 
 #img = mpimg.imread('test_image.jpg')
 
@@ -45,10 +46,10 @@ def load_training_images_names():
 def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
     
     draw_img = np.copy(img)
-    img = img.astype(np.float32)/255
+    #img = img.astype(np.float32)/255
     
     img_tosearch = img[ystart:ystop,:,:]
-    ctrans_tosearch = convert_color(img_tosearch, conv='RGB2YCrCb')
+    ctrans_tosearch = convert_color(img_tosearch, conv='BGR2YCrCb')
     if scale != 1:
         imshape = ctrans_tosearch.shape
         ctrans_tosearch = cv2.resize(ctrans_tosearch, (np.int(imshape[1]/scale), np.int(imshape[0]/scale)))
@@ -94,7 +95,7 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, ce
             hist_features = color_hist(subimg, nbins=hist_bins)
 
             # Scale features and make a prediction
-            test_features = X_scaler.transform(np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))    
+            test_features = X_scaler.transform(np.concatenate((spatial_features, hist_features, hog_features)))    
             #test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))    
             test_prediction = svc.predict(test_features)
             
@@ -115,9 +116,9 @@ if __name__ == "__main__":
 
     v_names, nv_names = load_training_images_names()
     features_cars = extract_features(v_names,cspace='BGR2YCrCb',spatial_size=spatial_size,hist_bins=hist_bins,hist_range=hist_range,
-                                        orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block)
+                                        orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block, hog_channel=hog_channel)
     features_noncars = extract_features(nv_names,cspace='BGR2YCrCb',spatial_size=spatial_size,hist_bins=hist_bins,hist_range=hist_range,
-                                        orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block)
+                                        orient=orient,pix_per_cell=pix_per_cell,cell_per_block=cell_per_block, hog_channel=hog_channel)
     
     print(len(features_cars))
     X = np.vstack((features_cars,features_noncars)).astype(np.float64)
@@ -148,6 +149,16 @@ if __name__ == "__main__":
     print('For these',n_predict, 'labels: ', y_test[0:n_predict])
     t2 = time.time()
     print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
+
+
+    files = glob.glob('test_images/*.jpg')
+    for x in files:
+        img = cv2.imread(x)
+        out_img = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+        cv2.imshow("predict",out_img)
+        cv2.waitKey(0)
+
+
 #out_img = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
 
 #plt.imshow(out_img)
