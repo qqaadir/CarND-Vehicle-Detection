@@ -1,7 +1,4 @@
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 import numpy as np
-import pickle
 import cv2
 from features import *
 from sklearn.preprocessing import StandardScaler
@@ -9,10 +6,10 @@ from sklearn.model_selection import train_test_split
 import glob
 from sklearn.svm import LinearSVC
 import time
-import pickle
 from sklearn.externals import joblib
 from tracking import *
 from scipy.ndimage.measurements import label
+from moviepy.editor import VideoFileClip
 
 #dist_pickle = pickle.load( open("svc_pickle.p", "rb" ) )
 #svc = dist_pickle["svc"]
@@ -23,8 +20,6 @@ spatial_size = (16,16)
 hist_bins = 48
 hist_range = (0,256)
 hog_channel = "ALL"
-
-#img = mpimg.imread('test_image.jpg')
 
 def load_training_images_names():
     vehicles = []
@@ -158,50 +153,64 @@ def train():
 ystart = 370
 ystop = 656
 scale = 1
+dict_svc= joblib.load("svc.pkl")
+svc = dict_svc["svc"]
+X_scaler = dict_svc["scaler"]
 
+def process_image(img):
+
+    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+
+    out_img1, bboxes1 = find_cars(img, ystart, ystop, 1, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+    out_img2, bboxes2 = find_cars(img, ystart, ystop, 1.5, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+    out_img3, bboxes3 = find_cars(img, ystart, ystop, 2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+    out_img4, bboxes4 = find_cars(img, ystart, ystop, 1.2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+
+    bbox_all = []
+    for x in bboxes1:
+        bbox_all.append(x)
+    for x in bboxes2:
+        bbox_all.append(x)
+    for x in bboxes3:
+        bbox_all.append(x)
+    for x in bboxes4:
+        bbox_all.append(x)
+    
+    #bbox_all = np.concatenate((np.array(bboxes1),np.array(bboxes2),np.array(bboxes3)))
+    heat = np.zeros_like(img[:,:,0]).astype(np.float)
+    # Add heat to each box in box list
+    heat = add_heat(heat,bbox_all)
+
+    # Apply threshold to help remove false positives
+    heat = apply_threshold(heat,2)
+
+    # Visualize the heatmap when displaying    
+    heatmap = np.clip(heat, 0, 255)
+
+    # Find final boxes from heatmap using label function
+    labels = label(heatmap)
+    draw_img, bboxes = draw_labeled_bboxes(np.copy(img), labels)
+
+    #cv2.imshow("predict",draw_img)
+    #cv2.waitKey(0)
+    img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
+
+    return draw_img
+
+
+def test_images():
+    files = glob.glob('test_images/*.jpg')
+    for x in files:
+        img = cv2.imread(x)
 
 if __name__ == "__main__":
     #train()
 
-
-    dict_svc= joblib.load("svc.pkl")
-    svc = dict_svc["svc"]
-    X_scaler = dict_svc["scaler"]
-    files = glob.glob('test_images/*.jpg')
-    for x in files:
-        img = cv2.imread(x)
-        out_img1, bboxes1 = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-        out_img2, bboxes2 = find_cars(img, ystart, ystop, 1.5, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-        out_img3, bboxes3 = find_cars(img, ystart, ystop, 2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-        out_img4, bboxes4 = find_cars(img, ystart, ystop, 1.2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-
-        bbox_all = []
-        for x in bboxes1:
-            bbox_all.append(x)
-        for x in bboxes2:
-            bbox_all.append(x)
-        for x in bboxes3:
-            bbox_all.append(x)
-        for x in bboxes4:
-            bbox_all.append(x)
-        
-        #bbox_all = np.concatenate((np.array(bboxes1),np.array(bboxes2),np.array(bboxes3)))
+    output_video = 'project_video.mp4'
+    clip1 = VideoFileClip("test_video.mp4")
+    white_clip = clip1.fl_image(process_image)
+    white_clip.write_videofile(output_video, audio=False)
 
 
-        heat = np.zeros_like(img[:,:,0]).astype(np.float)
-        # Add heat to each box in box list
-        heat = add_heat(heat,bbox_all)
-    
-        # Apply threshold to help remove false positives
-        heat = apply_threshold(heat,2)
 
-        # Visualize the heatmap when displaying    
-        heatmap = np.clip(heat, 0, 255)
-
-        # Find final boxes from heatmap using label function
-        labels = label(heatmap)
-        draw_img = draw_labeled_bboxes(np.copy(img), labels)
-
-        cv2.imshow("predict",draw_img)
-        cv2.imshow("all",out_img4)
-        cv2.waitKey(0)
+  
