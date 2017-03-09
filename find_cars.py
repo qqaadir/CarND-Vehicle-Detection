@@ -11,6 +11,8 @@ from sklearn.svm import LinearSVC
 import time
 import pickle
 from sklearn.externals import joblib
+from tracking import *
+from scipy.ndimage.measurements import label
 
 #dist_pickle = pickle.load( open("svc_pickle.p", "rb" ) )
 #svc = dist_pickle["svc"]
@@ -75,6 +77,8 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, ce
     hog2 = get_hog_features(ch2, orient, pix_per_cell, cell_per_block, feature_vec=False)
     hog3 = get_hog_features(ch3, orient, pix_per_cell, cell_per_block, feature_vec=False)
     
+    bboxes = []
+
     for xb in range(nxsteps):
         for yb in range(nysteps):
             ypos = yb*cells_per_step
@@ -104,9 +108,10 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, ce
                 xbox_left = np.int(xleft*scale)
                 ytop_draw = np.int(ytop*scale)
                 win_draw = np.int(window*scale)
+                bboxes.append([(xbox_left, ytop_draw+ystart),(xbox_left+win_draw,ytop_draw+win_draw+ystart)])
                 cv2.rectangle(draw_img,(xbox_left, ytop_draw+ystart),(xbox_left+win_draw,ytop_draw+win_draw+ystart),(0,0,255),6) 
                 
-    return draw_img
+    return draw_img, bboxes
 
 def train():
     v_names, nv_names = load_training_images_names()
@@ -150,7 +155,7 @@ def train():
     print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
 
     
-ystart = 400
+ystart = 370
 ystop = 656
 scale = 1
 
@@ -165,6 +170,38 @@ if __name__ == "__main__":
     files = glob.glob('test_images/*.jpg')
     for x in files:
         img = cv2.imread(x)
-        out_img = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-        cv2.imshow("predict",out_img)
+        out_img1, bboxes1 = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+        out_img2, bboxes2 = find_cars(img, ystart, ystop, 1.5, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+        out_img3, bboxes3 = find_cars(img, ystart, ystop, 2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+        out_img4, bboxes4 = find_cars(img, ystart, ystop, 1.2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+
+        bbox_all = []
+        for x in bboxes1:
+            bbox_all.append(x)
+        for x in bboxes2:
+            bbox_all.append(x)
+        for x in bboxes3:
+            bbox_all.append(x)
+        for x in bboxes4:
+            bbox_all.append(x)
+        
+        #bbox_all = np.concatenate((np.array(bboxes1),np.array(bboxes2),np.array(bboxes3)))
+
+
+        heat = np.zeros_like(img[:,:,0]).astype(np.float)
+        # Add heat to each box in box list
+        heat = add_heat(heat,bbox_all)
+    
+        # Apply threshold to help remove false positives
+        heat = apply_threshold(heat,2)
+
+        # Visualize the heatmap when displaying    
+        heatmap = np.clip(heat, 0, 255)
+
+        # Find final boxes from heatmap using label function
+        labels = label(heatmap)
+        draw_img = draw_labeled_bboxes(np.copy(img), labels)
+
+        cv2.imshow("predict",draw_img)
+        cv2.imshow("all",out_img4)
         cv2.waitKey(0)
