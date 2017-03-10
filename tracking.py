@@ -52,18 +52,24 @@ class Tracker():
 
         return centers
 
-    def track(self, detections, bboxes):
-        print(len(self.predictions))
-        if(len(self.predictions) == 0):
-            #not tracking anything
-            print("here")
-            for x,y in detections:
-                self.predictions.append(TrackedObject(x,y))
+    def track(self,bboxes = None):
+        if(bboxes is not None):
+            detections = get_bbox_centers(bboxes)
+            print(len(self.predictions))
+            if(len(self.predictions) == 0):
+                #not tracking anything
+                for x,y in detections:
+                    self.predictions.append(TrackedObject(x,y, ))
 
-        for i,x in enumerate(self.predictions):
-            #x.update_prediction()
-            #print("Predict")
-            x.predict()
+            for i,x in enumerate(self.predictions):
+                #x.update_prediction()
+                #print("Predict")
+                x.predict()
+        else:
+            for i,x in enumerate(self.predictions):
+                #x.update_prediction()
+                #print("Predict")
+                x.predict()
 
         cost = np.zeros((len(self.predictions),len(detections)))
         coords = self.get_pred_coords()
@@ -73,6 +79,7 @@ class Tracker():
 
         row_ind, col_ind = linear_sum_assignment(cost)
 
+        tracked_bboxes = []
         for i,x in enumerate(row_ind):
             val = detections[col_ind[i]]
             #self.predictions[x].kalman.correct(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
@@ -83,6 +90,9 @@ class Tracker():
             #print("Measurement")
             self.predictions[x].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
             #self.predictions[x].update_prediction()
+            tracked_bboxes.append(self.predictions[x].average_bbox())
+
+        return tracked_bboxes
 
     def no_detections(self):
         for x in self.predictions:
@@ -179,3 +189,18 @@ class TrackedObject:
         if(len(self.bboxes) > self.n):
             bboxes.pop(0)
         self.bboxes.append(bbox)
+
+    def average_bbox():
+        avg_width = 0
+        avg_height = 0
+        for bbox in self.bboxes:
+            avg_width += bbox[1][0] - bbox[0][0]
+            avg_height += bbox[1][1] - bbox[0][1]
+
+        avg_height = avg_height/len(self.bboxes)
+        avg_width = avg_width/len(self.bboxes)
+
+        x = int(self.state[0] - avg_width/2)
+        y = int(self.state[1] - avg_height/2)
+
+        return [(x,y),(x+avg_width,y+avg_height)]

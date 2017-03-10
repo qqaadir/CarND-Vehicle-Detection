@@ -157,11 +157,9 @@ dict_svc= joblib.load("svc.pkl")
 svc = dict_svc["svc"]
 X_scaler = dict_svc["scaler"]
 tracker = Tracker()
+update_detection = True
 
-def process_image(img):
-    draw_img = np.copy(img)
-    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
-
+def multi_scale_detection(img):
     out_img1, bboxes1 = find_cars(img, ystart, ystop, 1, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
     out_img2, bboxes2 = find_cars(img, ystart, ystop, 1.5, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
     out_img3, bboxes3 = find_cars(img, ystart, ystop, 2, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
@@ -191,21 +189,28 @@ def process_image(img):
     # Find final boxes from heatmap using label function
     labels = label(heatmap)
     draw_img, bboxes = tracker.draw_labeled_bboxes(draw_img, labels)
+    return draw_img, bboxes
 
+def process_image(img):
+    draw_img = np.copy(img)
+    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
+    if(update_detection):
+        detection_img, bboxes = multi_scale_detection(img)
+        #detections = tracker.get_bbox_centers(bboxes)
+        tracked_bboxes = tracker.track(bboxes)
+        update_detection = False
+        count = 0
+    else:
+        tracked_bboxes = tracker.track()
+        count += 1
+        if(count == 5):
+            count = 0
+            update_detection = True
 
-
-    detections = tracker.get_bbox_centers(bboxes)
-
-
-
-    tracker.track(detections,bboxes)
-
-
-
-
-    for p in detections:
-        cv2.circle(draw_img,p, 15, (0,0,255), -1)
+    for bbox in tracked_bboxes:
+        cv2.rectangle(draw_img, bbox[0], bbox[1], (0,0,255), 6)
+        cv2.circle(draw_img,p, 6, (0,0,255), -1)
 
     cv2.imshow("tracking",draw_img)
     cv2.waitKey(0)
