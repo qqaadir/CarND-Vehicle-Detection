@@ -10,7 +10,7 @@ class Tracker():
         #measurement 2 values:(x,y)
         self.kalman_filters = []
         self.predictions = []
-       
+
 
     def add_heat(self,heatmap, bbox_list):
         # Iterate through list of bboxes
@@ -21,7 +21,7 @@ class Tracker():
 
         # Return updated heatmap
         return heatmap# Iterate through list of bboxes
-        
+
     def apply_threshold(self,heatmap, threshold):
         # Zero out pixels below the threshold
         heatmap[heatmap <= threshold] = 0
@@ -52,14 +52,14 @@ class Tracker():
 
         return centers
 
-    def predict(self, detections, bboxes):
+    def track(self, detections, bboxes):
         print(len(self.predictions))
         if(len(self.predictions) == 0):
             #not tracking anything
             print("here")
             for x,y in detections:
                 self.predictions.append(TrackedObject(x,y))
-        
+
         for i,x in enumerate(self.predictions):
             #x.update_prediction()
             #print("Predict")
@@ -70,45 +70,92 @@ class Tracker():
         for i,x in enumerate(coords):
             diff = np.subtract(x,detections)
             cost[i,:] = np.sqrt(np.sum(np.power(diff,2),axis=1))
-        
+
         row_ind, col_ind = linear_sum_assignment(cost)
 
         for i,x in enumerate(row_ind):
             val = detections[col_ind[i]]
             #self.predictions[x].kalman.correct(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
-            self.predictions[x].bboxes.append(bboxes[x])
+
+            self.predictions[x].add_bbox(bboxes[x])
+
             #print("Z:", val)
             #print("Measurement")
             self.predictions[x].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
             #self.predictions[x].update_prediction()
 
-
     def no_detections(self):
         for x in self.predictions:
             x.counter += 1
-        
+
     def get_pred_coords(self):
         coords = []
         for x in self.predictions:
             coords.append([x.state[0],x.state[1]])
         return coords
 
+    def get_model_image(image):
+        hsv = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
+        h = hsv[:,:,0]
+        s = hsv[:,:,1]
+        lbp = get_lbp_feature(image)
+        roi_image = cv2.merge((h,s,lbp))
+
+        return roi_image
+
+    def get_model_histogram(image, roi):
+        x = roi[0][0]
+        y = roi[0][1]
+        width = roi[1][0] - roi[0][0]
+        height = roi[1][1] - roi[0][1]
+
+        hslbp = get_model_image(image)
+        roi_image = hslbp[y:y+height,x:x+width,:]
+        #H, edges = np.histogramdd([h.ravel(),s.ravel(),lbp.ravel()], bins = (48, 48, 27), normed=True)
+        hist = cv2.calcHist(roi_image, [0, 1, 2], None, [48, 48,27], [0, 180, 0, 256, 0, 26])
+        cv2.normalize(hist,hist,0,255,cv2.NORM_MINMAX)
+
+        return hist, roi_image
+
+    def get_lbp_image(image):
+        numPoints = 24
+        radius = 8
+        lbp = feature.local_binary_pattern(image, numPoints, radius, method="uniform")
+        return lbp
+
+    def camshift_tracking(image, track_window, roi_hist):
+        term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
+        #hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        img = get_model_image(image)
+        dst = cv2.calcBackProject([img],[0,1,2],roi_hist,[0,180,0,256,0,26],1)
+        # apply meanshift to get the new location
+        ret, track_window = cv2.meanShift(dst, track_window, term_crit)
+        x,y,w,h = track_window
+        return [(x,y), (x+w,y+h)]
+
+
 
 class TrackedObject:
-    def __init__(self,x,y):
+    def __init__(self,x,y, histogramModel):
         self.init_kalman_filter()
         self.counter = 0
-        self.state = np.array([x,y,0,0]) # assume initial velocity is zero 
+        self.state = np.array([x,y,0,0]) # assume initial velocity is zero
         self.state = self.state.reshape(4,1)
         self.bboxes = []
+        self.histogramModel = histogramModel
+        self.n = 5
 
     def init_kalman_filter(self):
+        # Measurement model
         self.H = np.array([[1,0,0,0],[0,1,0,0]],np.float32)
+        # Covariance
         self.P = np.array([[0,0,0,0],[0,0,0,0],[0,0,1000,0],[0,0,0,1000]],np.float32)
+        # Motion model
         self.F = np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]],np.float32)
+        # Measurement covariance
         self.R = np.array([[10,0],[0,10]],np.float32)
         self.I = np.identity(4)
-    
+
 
     def predict(self):
         # prediction
@@ -127,4 +174,8 @@ class TrackedObject:
         print("After")
         print(self.state)
         return self.state
-        
+
+    def add_bbox(bbox):
+        if(len(self.bboxes) > self.n):
+            bboxes.pop(0)
+        self.bboxes.append(bbox)
