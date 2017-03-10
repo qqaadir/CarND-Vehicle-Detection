@@ -156,9 +156,10 @@ scale = 1
 dict_svc= joblib.load("svc.pkl")
 svc = dict_svc["svc"]
 X_scaler = dict_svc["scaler"]
+tracker = Tracker()
 
 def process_image(img):
-
+    draw_img = np.copy(img)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
     out_img1, bboxes1 = find_cars(img, ystart, ystop, 1, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
@@ -179,21 +180,36 @@ def process_image(img):
     #bbox_all = np.concatenate((np.array(bboxes1),np.array(bboxes2),np.array(bboxes3)))
     heat = np.zeros_like(img[:,:,0]).astype(np.float)
     # Add heat to each box in box list
-    heat = add_heat(heat,bbox_all)
+    heat = tracker.add_heat(heat,bbox_all)
 
     # Apply threshold to help remove false positives
-    heat = apply_threshold(heat,2)
+    heat = tracker.apply_threshold(heat,2)
 
     # Visualize the heatmap when displaying    
     heatmap = np.clip(heat, 0, 255)
 
     # Find final boxes from heatmap using label function
     labels = label(heatmap)
-    draw_img, bboxes = draw_labeled_bboxes(np.copy(img), labels)
+    draw_img, bboxes = tracker.draw_labeled_bboxes(draw_img, labels)
 
-    #cv2.imshow("predict",draw_img)
-    #cv2.waitKey(0)
-    img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
+
+    
+
+    detections = tracker.get_bbox_centers(bboxes)
+
+    
+
+    tracker.predict(detections,bboxes)
+   
+
+
+
+    for p in detections:
+        cv2.circle(draw_img,p, 15, (0,0,255), -1)
+
+    cv2.imshow("predict",draw_img)
+    cv2.waitKey(0)
+    #img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
 
     return draw_img
 
