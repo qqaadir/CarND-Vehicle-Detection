@@ -192,18 +192,10 @@ def process_image(img):
     labels = label(heatmap)
     draw_img, bboxes = tracker.draw_labeled_bboxes(draw_img, labels)
 
-
-    
-
     detections = tracker.get_bbox_centers(bboxes)
-
-    
 
     tracker.predict(detections,bboxes)
    
-
-
-
     for p in detections:
         cv2.circle(draw_img,p, 15, (0,0,255), -1)
 
