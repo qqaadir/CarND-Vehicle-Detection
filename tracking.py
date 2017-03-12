@@ -19,6 +19,16 @@ class Tracker():
 
         return centers
 
+    def add_tracked_object(self,img,bbox):
+        point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
+        xtop = int(bbox[0][0])
+        ytop = int(bbox[0][1])
+        width = int(bbox[1][0] - xtop)
+        height = int(bbox[1][1] - ytop)
+        tracked_obj = TrackedObject(point[0],point[1],xtop,ytop,width,height, self.get_model_histogram(img,bbox))
+        self.predictions.append(tracked_obj)
+        return tracked_obj
+
     def track(self,img,bboxes = None):
         measurements = []
         if(bboxes is not None):
@@ -118,7 +128,14 @@ class Tracker():
         lbp = feature.local_binary_pattern(gray, numPoints, radius, method="uniform")
         return lbp
 
-    def camshift_tracking(self,image, track_window, roi_hist):
+    def camshift_tracking(self,image, bbox, roi_hist):
+        x = bbox[0][0]
+        y = bbox[0][1]
+        w = bbox[1][0] - bbox[0][0]
+        h = bbox[1][1] - bbox[0][1]
+
+        track_window = (x,y,w,h)
+
         term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
         #hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         img = self.get_model_image(image)
@@ -137,15 +154,15 @@ class Tracker():
 
 
 class TrackedObject:
-    def __init__(self,center_x,center_y,xtop,ytop,w,h, histogramModel):
+    def __init__(self,center_x,center_y, histogramModel):
         self.init_kalman_filter()
         self.counter = 0
         self.state = np.array([center_x,center_y,0,0]) # assume initial velocity is zero
         self.state = self.state.reshape(4,1)
         self.bboxes = []
         self.histogramModel = histogramModel
-        self.n = 2
-        self.track_window = (xtop,ytop,w,h)
+        self.n = 4
+        
 
     def init_kalman_filter(self):
         # Measurement model
@@ -195,6 +212,13 @@ class TrackedObject:
         x = int(self.state[0][0] - avg_width/2)
         y = int(self.state[1][0] - avg_height/2)
 
-        self.track_window = (x,y,int(avg_width),int(avg_height))
-
         return [(x,y),(x+int(avg_width),y+int(avg_height))]
+
+    def bbox_to_roi(self):
+        bbox = self.average_bbox()
+        x = bbox[0][0]
+        y = bbox[0][1]
+        w = bbox[1][0] - bbox[0][0]
+        h = bbox[1][1] - bbox[0][1]
+
+        return (x,y,w,h)

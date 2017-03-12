@@ -50,23 +50,39 @@ class FindCar:
     
     def process(self,img):
         draw_img = np.copy(img)
+        img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
         
-        img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
         test_img = np.copy(img)
         tracked_bboxes = []
         if(self.update_detection):
             bboxes = self.car_detector.multi_scale_detection(img)
-
             for bbox in bboxes:
-                if(self.car_detector.car_classify(test_img,bbox) == 1):
-                    cv2.rectangle(draw_img, bbox[0], bbox[1], (0,0,255), 6)
-                    x = (bbox[1][0] - bbox[0][0]) /2 + bbox[0][0]
-                    y = (bbox[1][1] - bbox[0][1]) /2 + bbox[0][1]
-                
-                    cv2.circle(draw_img,(int(x),int(y)), 6, (0,0,255), -1)
+                if(self.car_detector.car_classify(test_img,bbox) == 1): 
+                    point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
+                    tracked_obj = TrackedObject(point[0],point[1], self.car_tracker.get_model_histogram(img, bbox))
+                    #tracked_obj = self.car_tracker.add_tracked_object(img,bbox)
+                    tracked_bbox = self.car_tracker.camshift_tracking(img, bbox, tracked_obj.histogramModel)
+                    tracked_obj.add_bbox(tracked_bbox)
+                    tracked_bboxes.append(tracked_obj.average_bbox())
+                    self.car_tracker.predictions.append(tracked_obj)
+                    self.update_detection = False
                 else:
                     print("Bad detection")
+                    bboxes.remove(bbox)
+                
+        elif(len(self.car_tracker.predictions)>0):
+            for tracked_obj in self.car_tracker.predictions:
+                tracked_bboxes.append(self.car_tracker.camshift_tracking(img, tracked_obj.average_bbox(), tracked_obj.histogramModel))
+
+            
         
+        for bbox in tracked_bboxes:
+            cv2.rectangle(draw_img, bbox[0], bbox[1], (0,0,255), 6)
+            x = (bbox[1][0] - bbox[0][0]) /2 + bbox[0][0]
+            y = (bbox[1][1] - bbox[0][1]) /2 + bbox[0][1]
+            cv2.circle(draw_img,(int(x),int(y)), 6, (0,0,255), -1)
+
+
         cv2.imshow("out",draw_img)
         cv2.waitKey(0)
         return draw_img
@@ -161,7 +177,11 @@ if __name__ == "__main__":
    
     find_cars = FindCar()
     #find_cars.train()
-    output_video = 'test1_video.mp4'
+    #output_video = 'test1_video.mp4'
     clip1 = VideoFileClip("test_video.mp4")
-    white_clip = clip1.fl_image(find_cars.process)
-    white_clip.write_videofile(output_video, audio=False)
+    for frame in clip1.iter_frames():
+        find_cars.process(frame)
+
+    
+    #white_clip = clip1.fl_image(find_cars.process)
+    #white_clip.write_videofile(output_video, audio=False)
