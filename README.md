@@ -63,8 +63,8 @@ Also see this, [other video](./submission_video2.mp4), to see it working on a lo
 
 ####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
-- I used the heatmap approach taught in the lectures. Where I added plus one to every pixel covered in a bounding box, as a result pixels with overlapping bounding boxes has values > 1. With this heatmap I thresholded with a value of 2 and then used the scipy function 'label' to get the new bounding boxes. 
-- After combining overlapping bounding boxes using the heat map, I also run the classifier again on the new bounding box to verify that we actually got a car still.
+- I used the heatmap approach taught in the lectures. Where I added plus one to every pixel covered in a bounding box, as a result pixels with overlapping bounding boxes have values > 1. With this heatmap I thresholded with a value of 2 and then used the scipy function 'label' to get the new bounding boxes. 
+- After combining overlapping bounding boxes using the heat map, I run the classifier again on the new bounding box to verify that we actually got a car still.
 
 ---
 
