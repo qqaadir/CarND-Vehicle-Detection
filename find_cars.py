@@ -49,6 +49,11 @@ class FindCar:
             self.count = 0
             bboxes = self.car_detector.multi_scale_detection(img)
             measurements = []
+
+
+            for tracked_obj in self.car_tracker.predictions:
+                tracked_obj.predict()
+
             for bbox in bboxes:
                 point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
                 
@@ -71,6 +76,7 @@ class FindCar:
                 for i,x in enumerate(measurements):
                     tracked_obj = TrackedObject(x[0],x[1], self.car_tracker.get_model_histogram(img, bboxes[i]))
                     tracked_obj.add_bbox(bboxes[i])
+                    tracked_obj.measurement(np.array([[np.float32(x[0])],[np.float32(x[1])]]))
                     #tracked_bboxes.append(tracked_obj.average_bbox())
                     self.car_tracker.predictions.append(tracked_obj)
             # More measurements than predictions
@@ -78,6 +84,7 @@ class FindCar:
                 pred_ind,measured_inds = self.car_tracker.associate(measurements)
                 for i,x in enumerate(pred_ind):
                     val = measurements[measured_inds[i]]
+                    tracked_obj.predict()
                     self.car_tracker.predictions[x].add_bbox(bboxes[i])
                     self.car_tracker.predictions[x].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
                 m2 = copy.copy(measurements)
@@ -231,8 +238,8 @@ if __name__ == "__main__":
    
     find_cars = FindCar()
     #find_cars.train()
-    output_video = 'test1_video.mp4'
-    clip1 = VideoFileClip("project_video2.mp4")
+    output_video = 'submission_video2.mp4'
+    clip1 = VideoFileClip("test_video2.mp4")
     #for frame in clip1.iter_frames():
     #    find_cars.process(frame)
 

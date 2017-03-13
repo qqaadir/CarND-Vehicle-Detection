@@ -90,7 +90,7 @@ class Tracker():
         coords = self.get_pred_coords()
 
         for i,x in enumerate(coords):
-            diff = np.subtract(x,measurements)
+            diff = np.subtract(np.transpose(x),measurements)
             if(len(measurements) == 1):
                 cost[i] = np.sqrt(np.sum(np.power(diff,2)))
             else:

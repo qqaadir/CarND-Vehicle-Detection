@@ -146,14 +146,18 @@ class Detector():
 
 
     def multi_scale_detection(self,img):
-        out_img1, bboxes1 = self.find_cars(img, self.ystart, self.ystop, 1, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
+        #out_img1, bboxes1 = self.find_cars(img, self.ystart, self.ystop, 1, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
         out_img2, bboxes2 = self.find_cars(img, self.ystart, self.ystop, 1.5, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
         out_img3, bboxes3 = self.find_cars(img, self.ystart, self.ystop, 2, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
         #out_img4, bboxes4 = self.find_cars(img, self.ystart, self.ystop, 1.2, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
+        #cv2.imwrite('examples/scale1.jpg',out_img1)
+        #cv2.imwrite('examples/scale1.5.jpg',out_img2)
+        #cv2.imwrite('examples/scale2.jpg',out_img3)
+
 
         bbox_all = []
-        for x in bboxes1:
-            bbox_all.append(x)
+        #for x in bboxes1:
+        #    bbox_all.append(x)
         for x in bboxes2:
             bbox_all.append(x)
         for x in bboxes3:
