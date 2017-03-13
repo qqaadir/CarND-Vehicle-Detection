@@ -24,9 +24,8 @@ The goals / steps of this project are the following:
 
 ####1. Explain how (and identify where in your code) you extracted HOG features from the training images.
 
-- In the Detector class in detector.py the is a function `train` that calls the `extract_features` function from features.py
+- In the Detector class in detector.py the function `train` calls the `extract_features` function from features.py
 - The `extract_features` function uses the skimage function `hog` to extract hog feature vectors from all the images at the file path passed in to the imgs parameter
-
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
@@ -35,9 +34,9 @@ The goals / steps of this project are the following:
 
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-- In the Detector class in detector.py the is a function `train` is used for training a linear SVM
+- In the Detector class in detector.py the function `train` is used for training a linear SVM
 - The features used are a concatenation of the hog features described above, with the color histogram (48 bins) and the spatial color features (32X32)
-- Featurs were normalized using the sklearn `StandardScalar` class
+- Features were normalized using the sklearn `StandardScalar` class
 - 20% of the training images were used for validation and were split using the sklearn `train_test_split` function
 
 ###Sliding Window Search
@@ -46,7 +45,7 @@ The goals / steps of this project are the following:
 
 - I used the code provided in the lectures for the sliding window search. The `find_cars` function in the Detector class in detector.py shows this implementation. 
 - For overlap I went with 75% overlap (2 cells per step), as this gave me the the best results. Anything lower did not give very reliable results.
-- For scales I ended up using two (1.5,2) in the `multi_scale_detection` function in detector.py. This combination allows recognizes all the car close to the camera, and will sometimes pick up cars way ahead. 
+- For scales I ended up using two (1.5,2) in the `multi_scale_detection` function in detector.py. This combination recognizes all the car close to the camera, and will sometimes pick up cars far ahead. 
 
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
@@ -58,26 +57,14 @@ The goals / steps of this project are the following:
 ### Video Implementation
 
 ####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./submission_video.mp4)
+Also see this, [other video](./submission_video2.mp4), to see it working on a longer video
 
 
 ####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
-I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
-
-Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
-
-### Here are six frames and their corresponding heatmaps:
-
-![alt text][image5]
-
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
-
-### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
-
-
+- I used the heatmap approach taught in the lectures. Where I added plus one to every pixel covered in a bounding box, as a result pixels with overlapping bounding boxes has values > 1. With this heatmap I thresholded with a value of 2 and then used the scipy function 'label' to get the new bounding boxes. 
+- After combining overlapping bounding boxes using the heat map, I also run the classifier again on the new bounding box to verify that we actually got a car still.
 
 ---
 
@@ -85,9 +72,18 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+- To start I followed the pipeline laid out in the lectures using a combination of Hog, color histogram and color spatial info for features to train a linear SVM. Then I used the heatmap method to deal with false positives.
+- In addtion to this I added tracked object association between frames using the scipy function `linear_sum_assignment` which uses the Hungarian algorithm to get the min cost when assigning "workers" to "jobs". In this case I used the distance between bounding boxes as the cost. This allowed me to keep track of the position of cars between frames and calculate a average bounding box over frames. See the `associate` function in tracking.py for the implementation
+- With data association between frames I decided to add Kalman filter state estimation to smooth the bounding box motion between frames as well as for tracking so I wouldn't have to run inefficient sliding window detection as often. For the kalman filter I am using a state of [x,y,x_velocity,y_velocity]. The kalman filter implementation is in the `TrackedObject` class in tracking.py. 
+- For how I integrated the Kalman filter into my main program see the `process` function in find_cars.py. My program follows this flow:
+    - If Detect 
+      - Run Kalman filter prediction step for all tracked objects
+      - Do data association between detected frames and all tracked frames
+      - Run the Kalman filter measurement step for all tracked objects still in frame
+    - If Track
+      - Run Kalman filter prediction step for all tracked objects
+- My current implementation does not run in real time, nor does it take into account when tracked objects become occluded. Using the already implemented Kalman filter I could track objects through occlusions, but did not have time to implement it for this project. Using the camshift tracking algorithm would also help reduce the number of times I have to run the detection method and speed things up. But the sliding window detection step is still a major hurtle for running in real time. 
 
-
-Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) examples to train your classifier.  These example images come from a combination of the [GTI vehicle image database](http://www.gti.ssr.upm.es/data/Vehicle_database.html), the [KITTI vision benchmark suite](http://www.cvlibs.net/datasets/kitti/), and examples extracted from the project video itself.   You are welcome and encouraged to take advantage of the recently released [Udacity labeled dataset](https://github.com/udacity/self-driving-car/tree/master/annotations) to augment your training data.  
+Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) examples to train your classifier.  These example images come from a combination of the [GTI vehicle image database](http://www.gti.ssr.upm.es/data/Vehicle_database.html), the [KITTI vision benchmark suite](http://www.cvlibs.net/datasets/kitti/), and examples extracted from the project video itself.
 
 
