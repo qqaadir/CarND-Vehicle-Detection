@@ -24,9 +24,8 @@ The goals / steps of this project are the following:
 
 ####1. Explain how (and identify where in your code) you extracted HOG features from the training images.
 
-- In the Detector class in detector.py the is a function `train` that calls the `extract_features` function from features.py
+- In the Detector class in detector.py the function `train` calls the `extract_features` function from features.py
 - The `extract_features` function uses the skimage function `hog` to extract hog feature vectors from all the images at the file path passed in to the imgs parameter
-
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
@@ -35,9 +34,9 @@ The goals / steps of this project are the following:
 
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-- In the Detector class in detector.py the is a function `train` is used for training a linear SVM
+- In the Detector class in detector.py the function `train` is used for training a linear SVM
 - The features used are a concatenation of the hog features described above, with the color histogram (48 bins) and the spatial color features (32X32)
-- Featurs were normalized using the sklearn `StandardScalar` class
+- Features were normalized using the sklearn `StandardScalar` class
 - 20% of the training images were used for validation and were split using the sklearn `train_test_split` function
 
 ###Sliding Window Search
@@ -46,7 +45,7 @@ The goals / steps of this project are the following:
 
 - I used the code provided in the lectures for the sliding window search. The `find_cars` function in the Detector class in detector.py shows this implementation. 
 - For overlap I went with 75% overlap (2 cells per step), as this gave me the the best results. Anything lower did not give very reliable results.
-- For scales I ended up using two (1.5,2) in the `multi_scale_detection` function in detector.py. This combination allows recognizes all the car close to the camera, and will sometimes pick up cars way ahead. 
+- For scales I ended up using two (1.5,2) in the `multi_scale_detection` function in detector.py. This combination recognizes all the car close to the camera, and will sometimes pick up cars far ahead. 
 
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
@@ -74,7 +73,7 @@ Also see this, [other video](./submission_video2.mp4), to see it working on a lo
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
 - To start I followed the pipeline laid out in the lectures using a combination of Hog, color histogram and color spatial info for features to train a linear SVM. Then I used the heatmap method to deal with false positives.
-- In addtion to this I added tracked object association between frames using the scipy function `linear_sum_assignment` which uses the Hungarian algorithm get the min cost when assigning "workers" to "jobs". In this case I used the distance between bounding boxes as the cost. This allowed me to keep track of the position of cars between frames and calculate a average bounding box over frames. See the `associate` function in tracking.py for the implementation
+- In addtion to this I added tracked object association between frames using the scipy function `linear_sum_assignment` which uses the Hungarian algorithm to get the min cost when assigning "workers" to "jobs". In this case I used the distance between bounding boxes as the cost. This allowed me to keep track of the position of cars between frames and calculate a average bounding box over frames. See the `associate` function in tracking.py for the implementation
 - With data association between frames I decided to add Kalman filter state estimation to smooth the bounding box motion between frames as well as for tracking so I wouldn't have to run inefficient sliding window detection as often. For the kalman filter I am using a state of [x,y,x_velocity,y_velocity]. The kalman filter implementation is in the `TrackedObject` class in tracking.py. 
 - For how I integrated the Kalman filter into my main program see the `process` function in find_cars.py. My program follows this flow:
     - If Detect 
@@ -83,7 +82,7 @@ Also see this, [other video](./submission_video2.mp4), to see it working on a lo
       - Run the Kalman filter measurement step for all tracked objects still in frame
     - If Track
       - Run Kalman filter prediction step for all tracked objects
-- My current implementation does not run in real time, nor does it take into account when tracked objects become occluded. Using the already implemented Kalman filter I could track objects through occlusions, but did not have time to implement it for this project. Using the camshift tracking algorithm would also help reduce the number of times I have to run the detection method and speed things up. But the detection step is still a major hurtle for running in real time. 
+- My current implementation does not run in real time, nor does it take into account when tracked objects become occluded. Using the already implemented Kalman filter I could track objects through occlusions, but did not have time to implement it for this project. Using the camshift tracking algorithm would also help reduce the number of times I have to run the detection method and speed things up. But the sliding window detection step is still a major hurtle for running in real time. 
 
 Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) examples to train your classifier.  These example images come from a combination of the [GTI vehicle image database](http://www.gti.ssr.upm.es/data/Vehicle_database.html), the [KITTI vision benchmark suite](http://www.cvlibs.net/datasets/kitti/), and examples extracted from the project video itself.
 
