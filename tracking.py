@@ -116,7 +116,8 @@ class Tracker():
         hslbp = self.get_model_image(image)
         roi_image = hslbp[y:y+height,x:x+width,:]
         #H, edges = np.histogramdd([h.ravel(),s.ravel(),lbp.ravel()], bins = (48, 48, 27), normed=True)
-        hist = cv2.calcHist(roi_image, [0, 1, 2], None, [48, 48,27], [0, 180, 0, 256, 0, 26])
+        #hist = cv2.calcHist(roi_image, [0, 1, 2], None, [48, 48,27], [0, 180, 0, 256, 0, 26])
+        hist = cv2.calcHist(roi_image, [0, 1], None, [48,48], [0, 180, 0, 256])
         cv2.normalize(hist,hist,0,255,cv2.NORM_MINMAX)
 
         return hist
@@ -139,7 +140,8 @@ class Tracker():
         term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
         #hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         img = self.get_model_image(image)
-        dst = cv2.calcBackProject([img],[0,1,2],roi_hist,[0,180,0,256,0,26],1)
+        #dst = cv2.calcBackProject([img],[0,1,2],roi_hist,[0,180,0,256,0,26],1)
+        dst = cv2.calcBackProject([img],[0,1],roi_hist,[0,180,0,256],1)
         # apply meanshift to get the new location
         ret, track_window = cv2.meanShift(dst, track_window, term_crit)
         x,y,w,h = track_window

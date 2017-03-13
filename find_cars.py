@@ -21,29 +21,13 @@ class FindCar:
 
     
     def __init__(self):
-        """
-        self.orient = 18
-        self.pix_per_cel = 8
-        self.cell_per_block = 2
-        self.spatial_size = (16,16)
-        self.hist_bins = 48
-        self.hist_range = (0,256)
-        self.hog_channel = "ALL"
-        """
         self.car_tracker = Tracker()
         self.update_detection = True
         self.car_detector = Detector() 
-
-        """
-        self.ystart = 400
-        self.ystop = 656
-        dict_svc= joblib.load("svc.pkl")
-        self.svc = dict_svc["svc"]
-        self.X_scaler = dict_svc["scaler"]
-        self.count = 0
-        self.no_cars_count = 0
         self.tracking = False
-        """
+        self.count = 0
+        self.non_detect = 10
+
     def train(self):
         car,non_car = self.load_training_images_names()
         self.car_detector.train(car,non_car)
@@ -55,25 +39,34 @@ class FindCar:
         test_img = np.copy(img)
         tracked_bboxes = []
         if(self.update_detection):
+            self.update_detection = False
+            self.count = 0
             bboxes = self.car_detector.multi_scale_detection(img)
             for bbox in bboxes:
-                if(self.car_detector.car_classify(test_img,bbox) == 1): 
-                    point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
-                    tracked_obj = TrackedObject(point[0],point[1], self.car_tracker.get_model_histogram(img, bbox))
-                    #tracked_obj = self.car_tracker.add_tracked_object(img,bbox)
-                    tracked_bbox = self.car_tracker.camshift_tracking(img, bbox, tracked_obj.histogramModel)
-                    tracked_obj.add_bbox(tracked_bbox)
+                point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
+                tracked_obj = TrackedObject(point[0],point[1], self.car_tracker.get_model_histogram(img, bbox))
+                #tracked_obj = self.car_tracker.add_tracked_object(img,bbox)
+                tracked_bbox = self.car_tracker.camshift_tracking(img, bbox, tracked_obj.histogramModel)
+                tracked_obj.add_bbox(tracked_bbox)
+                if(self.car_detector.car_classify(test_img,tracked_bbox) == 1): 
+                   
                     tracked_bboxes.append(tracked_obj.average_bbox())
                     self.car_tracker.predictions.append(tracked_obj)
-                    self.update_detection = False
+                    
+                    self.tracking = True
                 else:
                     print("Bad detection")
                     bboxes.remove(bbox)
                 
-        elif(len(self.car_tracker.predictions)>0):
+        elif(len(self.car_tracker.predictions)>0 and self.tracking):
             for tracked_obj in self.car_tracker.predictions:
                 tracked_bboxes.append(self.car_tracker.camshift_tracking(img, tracked_obj.average_bbox(), tracked_obj.histogramModel))
-
+            self.count += 1
+        else:
+            self.count += 1
+        
+        if(self.count == self.non_detect):
+            self.update_detection = True
             
         
         for bbox in tracked_bboxes:
@@ -178,7 +171,7 @@ if __name__ == "__main__":
     find_cars = FindCar()
     #find_cars.train()
     #output_video = 'test1_video.mp4'
-    clip1 = VideoFileClip("test_video.mp4")
+    clip1 = VideoFileClip("project_video.mp4")
     for frame in clip1.iter_frames():
         find_cars.process(frame)
 
