@@ -37,11 +37,7 @@ class Tracker():
             if(len(self.predictions) == 0):
                 #not tracking anything
                 for i,point in enumerate(measurements):
-                    xtop = int(bboxes[i][0][0])
-                    ytop = int(bboxes[i][0][1])
-                    width = int(bboxes[i][1][0] - xtop)
-                    height = int(bboxes[i][1][1] - ytop)
-                    self.predictions.append(TrackedObject(point[0],point[1],xtop,ytop,width,height, self.get_model_histogram(img,bboxes[i])))
+                    self.predictions.append(TrackedObject(point[0],point[1], self.get_model_histogram(img,bboxes[i])))
 
             for i,x in enumerate(self.predictions):
                 #x.update_prediction()
@@ -50,11 +46,11 @@ class Tracker():
         else:
             bboxes = []
             for i,x in enumerate(self.predictions):
-                bboxes.append(self.camshift_tracking(img,x.track_window,x.histogramModel))
+                #bboxes.append(self.camshift_tracking(img,x.track_window,x.histogramModel))
                 #x.update_prediction()
                 #print("Predict")
                 x.predict()
-            measurements = self.get_bbox_centers(bboxes)
+            #measurements = self.get_bbox_centers(bboxes)
 
         cost = np.zeros((len(self.predictions),len(measurements)))
         coords = self.get_pred_coords()
@@ -86,6 +82,35 @@ class Tracker():
                 
 
         return tracked_bboxes
+
+    def associate(self,measurements):
+        print(len(measurements))
+        print(len(self.predictions))
+        cost = np.zeros((len(self.predictions),len(measurements)))
+        coords = self.get_pred_coords()
+
+        for i,x in enumerate(coords):
+            diff = np.subtract(x,measurements)
+            if(len(measurements) == 1):
+                cost[i] = np.sqrt(np.sum(np.power(diff,2)))
+            else:
+                cost[i,:] = np.sqrt(np.sum(np.power(diff,2),axis=1))
+
+        
+        row_ind, col_ind = linear_sum_assignment(cost)
+        costs = cost[row_ind,col_ind]
+        to_remove_r = []
+        to_remove_c = []
+        for i,c in enumerate(costs):
+            if(c>7.5):
+                to_remove_r = row_ind[i]
+                to_remove_c = col_ind[i]
+        
+        #np.delete(row_ind, to_remove_r, None)
+        #np.delete(col_ind, to_remove_c, None)
+        return row_ind,col_ind
+
+
 
     def no_detections(self):
         for x in self.predictions:

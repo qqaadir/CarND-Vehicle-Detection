@@ -22,6 +22,7 @@ class Detector():
         self.hist_bins = 48
         self.hist_range = (0,256)
         self.hog_channel = "ALL"
+        
         self.ystart = 385
         self.ystop = 656
         dict_svc= joblib.load("svc.pkl")

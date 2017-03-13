@@ -22,11 +22,12 @@ class FindCar:
     
     def __init__(self):
         self.car_tracker = Tracker()
-        self.update_detection = True
+        self.update_measurement = True
         self.car_detector = Detector() 
         self.tracking = False
         self.count = 0
         self.non_detect = 10
+        self.update = 0
 
     def train(self):
         car,non_car = self.load_training_images_names()
@@ -38,36 +39,95 @@ class FindCar:
         
         test_img = np.copy(img)
         tracked_bboxes = []
-        if(self.update_detection):
-            self.update_detection = False
+        tracked_objs = []
+        if(self.update_measurement):
+            self.update += 1
+            if(self.update > 3):
+                self.update_measurement = False
+                self.update = 0
+            #self.update_measurement = False
             self.count = 0
             bboxes = self.car_detector.multi_scale_detection(img)
+            measurements = []
             for bbox in bboxes:
                 point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
-                tracked_obj = TrackedObject(point[0],point[1], self.car_tracker.get_model_histogram(img, bbox))
-                #tracked_obj = self.car_tracker.add_tracked_object(img,bbox)
-                tracked_bbox = self.car_tracker.camshift_tracking(img, bbox, tracked_obj.histogramModel)
-                tracked_obj.add_bbox(tracked_bbox)
-                if(self.car_detector.car_classify(test_img,tracked_bbox) == 1): 
-                   
-                    tracked_bboxes.append(tracked_obj.average_bbox())
-                    self.car_tracker.predictions.append(tracked_obj)
-                    
+                
+                if(self.car_detector.car_classify(test_img,bbox) == 1): 
+                    measurements.append(point)
+                    #tracked_obj = TrackedObject(point[0],point[1], self.car_tracker.get_model_histogram(img, bbox))
+                    #tracked_obj.add_bbox(bbox)
+                    #tracked_bboxes.append(tracked_obj.average_bbox())
+                    #self.car_tracker.predictions.append(tracked_obj)
                     self.tracking = True
                 else:
                     print("Bad detection")
                     bboxes.remove(bbox)
+                    
+            cost = np.zeros((len(self.car_tracker.predictions),len(measurements)))
+            if(len(measurements) == 0):
+                pass
+            #No predicition
+            elif(len(self.car_tracker.predictions) == 0):
+                for i,x in enumerate(measurements):
+                    tracked_obj = TrackedObject(x[0],x[1], self.car_tracker.get_model_histogram(img, bboxes[i]))
+                    tracked_obj.add_bbox(bboxes[i])
+                    #tracked_bboxes.append(tracked_obj.average_bbox())
+                    self.car_tracker.predictions.append(tracked_obj)
+            # More measurements than predictions
+            elif(len(measurements) > len(self.car_tracker.predictions)):
+                pred_ind,measured_inds = self.car_tracker.associate(measurements)
+                for i,x in enumerate(pred_ind):
+                    val = measurements[measured_inds[i]]
+                    self.car_tracker.predictions[x].add_bbox(bboxes[i])
+                    self.car_tracker.predictions[x].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
+                m2 = copy.copy(measurements)
+                for i in measured_inds:
+                    m2.remove(measurements[i])
+                for i,x in enumerate(m2):
+                    tracked_obj = TrackedObject(x[0],x[1], self.car_tracker.get_model_histogram(img, bboxes[i]))
+                    tracked_obj.add_bbox(bboxes[i])
+                    #tracked_bboxes.append(tracked_obj.average_bbox())
+                    self.car_tracker.predictions.append(tracked_obj)
+            # More predictions than measurements
+            elif(len(measurements) <= len(self.car_tracker.predictions)):
+                pred_ind,measured_inds = self.car_tracker.associate(measurements)
+                for i,x in enumerate(pred_ind):
+                    val = measurements[measured_inds[i]]
+                    self.car_tracker.predictions[x].add_bbox(bboxes[i])
+                    self.car_tracker.predictions[x].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
                 
+                p2 = copy.copy(self.car_tracker.predictions)
+                #print(pred_ind)
+                #print(len(self.car_tracker.predictions))
+                for i in pred_ind:
+                    p2.remove(self.car_tracker.predictions[i])
+                for i,x in enumerate(p2):
+                    self.car_tracker.predictions[i].counter += 1
         elif(len(self.car_tracker.predictions)>0 and self.tracking):
             for tracked_obj in self.car_tracker.predictions:
-                tracked_bboxes.append(self.car_tracker.camshift_tracking(img, tracked_obj.average_bbox(), tracked_obj.histogramModel))
+                tracked_obj.predict()
+                tracked_bbox = tracked_obj.average_bbox()
+                if(self.car_detector.car_classify(test_img,tracked_bbox) == 1):
+                    tracked_bboxes.append(tracked_bbox)
+                    tracked_obj.counter = 0
+                else:
+                    tracked_obj.counter += 1
+                    if(tracked_obj.counter >= 3):
+                        self.car_tracker.predictions.remove(tracked_obj)
+                        update_measurement = True
+                        self.count = 0
+                #tracked_bboxes.append(self.car_tracker.camshift_tracking(img, tracked_obj.average_bbox(), tracked_obj.histogramModel))
             self.count += 1
         else:
             self.count += 1
         
         if(self.count == self.non_detect):
-            self.update_detection = True
-            
+            self.update_measurement = True
+            self.count = 0
+        
+        tracked_bboxes = []
+        for tracked_obj in self.car_tracker.predictions:
+            tracked_bboxes.append(tracked_obj.average_bbox())
         
         for bbox in tracked_bboxes:
             cv2.rectangle(draw_img, bbox[0], bbox[1], (0,0,255), 6)
@@ -75,9 +135,10 @@ class FindCar:
             y = (bbox[1][1] - bbox[0][1]) /2 + bbox[0][1]
             cv2.circle(draw_img,(int(x),int(y)), 6, (0,0,255), -1)
 
-
-        cv2.imshow("out",draw_img)
-        cv2.waitKey(0)
+        #if(len(tracked_bboxes) > 0):
+        #    cv2.imshow("out",draw_img)
+        #    cv2.waitKey(0)
+        #print("done")
         return draw_img
 
        
@@ -108,7 +169,7 @@ class FindCar:
         img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
         test_img = np.copy(img)
         tracked_bboxes = []
-        if(self.update_detection):
+        if(self.update_measurement):
             bboxes = self.multi_scale_detection(img)
 
             for bbox in bboxes:
@@ -117,11 +178,11 @@ class FindCar:
             if(len(bboxes) > 0):
                 self.no_cars_count = 0
                 tracked_bboxes = self.tracker.track(img,bboxes)
-                self.update_detection = False
+                self.update_measurement = False
                 self.tracking = True
                 self.count = 0
             else:
-                self.update_detection = False
+                self.update_measurement = False
                 self.no_cars_count += 1
 
         elif(self.tracking):
@@ -129,12 +190,12 @@ class FindCar:
             self.count += 1
             if(self.count == 10):
                 self.count = 0
-                self.update_detection = True
+                self.update_measurement = True
                 self.tracking = False
         else:
             self.no_cars_count += 1
             if(self.no_cars_count == 10):
-                self.update_detection = True
+                self.update_measurement = True
                 self.no_cars_count = 0
 
 
@@ -170,11 +231,11 @@ if __name__ == "__main__":
    
     find_cars = FindCar()
     #find_cars.train()
-    #output_video = 'test1_video.mp4'
-    clip1 = VideoFileClip("project_video.mp4")
-    for frame in clip1.iter_frames():
-        find_cars.process(frame)
+    output_video = 'test1_video.mp4'
+    clip1 = VideoFileClip("project_video2.mp4")
+    #for frame in clip1.iter_frames():
+    #    find_cars.process(frame)
 
     
-    #white_clip = clip1.fl_image(find_cars.process)
-    #white_clip.write_videofile(output_video, audio=False)
+    white_clip = clip1.fl_image(find_cars.process)
+    white_clip.write_videofile(output_video, audio=False)
