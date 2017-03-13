@@ -12,7 +12,9 @@ from scipy.ndimage.measurements import label
 from moviepy.editor import VideoFileClip
 import copy
 
-
+#
+# Detector class implements linear SVM for detecting cars at multiple scales
+#
 class Detector():
     def __init__(self):
         self.orient = 18
@@ -146,26 +148,15 @@ class Detector():
 
 
     def multi_scale_detection(self,img):
-        #out_img1, bboxes1 = self.find_cars(img, self.ystart, self.ystop, 1, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
         out_img2, bboxes2 = self.find_cars(img, self.ystart, self.ystop, 1.5, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
         out_img3, bboxes3 = self.find_cars(img, self.ystart, self.ystop, 2, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
-        #out_img4, bboxes4 = self.find_cars(img, self.ystart, self.ystop, 1.2, self.svc, self.X_scaler, self.orient, self.pix_per_cel, self.cell_per_block, self.spatial_size, self.hist_bins)
-        #cv2.imwrite('examples/scale1.jpg',out_img1)
-        #cv2.imwrite('examples/scale1.5.jpg',out_img2)
-        #cv2.imwrite('examples/scale2.jpg',out_img3)
-
-
+  
         bbox_all = []
-        #for x in bboxes1:
-        #    bbox_all.append(x)
         for x in bboxes2:
             bbox_all.append(x)
         for x in bboxes3:
             bbox_all.append(x)
-        #for x in bboxes4:
-        #    bbox_all.append(x)
-
-        #bbox_all = np.concatenate((np.array(bboxes1),np.array(bboxes2),np.array(bboxes3)))
+        
         heat = np.zeros_like(img[:,:,0]).astype(np.float)
         # Add heat to each box in box list
         heat = self.add_heat(heat,bbox_all)

@@ -5,87 +5,21 @@ from numpy.linalg import inv
 from skimage import feature
 import copy
 
+#
+# Tracker class, with functions for tracking objects
+#
 class Tracker():
     def __init__(self):
-        #state 4 values:(x,y,v_x, v_y)
-        #measurement 2 values:(x,y)
-        self.kalman_filters = []
         self.predictions = []
-    
-    def get_bbox_centers(self,bboxes):
-        centers = []
-        for bbox in bboxes:
-            centers.append((int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1])))
 
-        return centers
+    def get_pred_coords(self):
+        coords = []
+        for x in self.predictions:
+            coords.append([x.state[0],x.state[1]])
+        return coords
 
-    def add_tracked_object(self,img,bbox):
-        point = (int((bbox[1][0] - bbox[0][0])/2 + bbox[0][0]),int((bbox[1][1] - bbox[0][1])/2 + bbox[0][1]))
-        xtop = int(bbox[0][0])
-        ytop = int(bbox[0][1])
-        width = int(bbox[1][0] - xtop)
-        height = int(bbox[1][1] - ytop)
-        tracked_obj = TrackedObject(point[0],point[1],xtop,ytop,width,height, self.get_model_histogram(img,bbox))
-        self.predictions.append(tracked_obj)
-        return tracked_obj
-
-    def track(self,img,bboxes = None):
-        measurements = []
-        if(bboxes is not None):
-            measurements = self.get_bbox_centers(bboxes)
-            #print(len(self.predictions))
-            if(len(self.predictions) == 0):
-                #not tracking anything
-                for i,point in enumerate(measurements):
-                    self.predictions.append(TrackedObject(point[0],point[1], self.get_model_histogram(img,bboxes[i])))
-
-            for i,x in enumerate(self.predictions):
-                #x.update_prediction()
-                #print("Predict")
-                x.predict()
-        else:
-            bboxes = []
-            for i,x in enumerate(self.predictions):
-                #bboxes.append(self.camshift_tracking(img,x.track_window,x.histogramModel))
-                #x.update_prediction()
-                #print("Predict")
-                x.predict()
-            #measurements = self.get_bbox_centers(bboxes)
-
-        cost = np.zeros((len(self.predictions),len(measurements)))
-        coords = self.get_pred_coords()
-        tracked_bboxes = []
-        if(len(coords) == 1):
-            val = measurements[0]
-            self.predictions[0].add_bbox(bboxes[0])
-            self.predictions[0].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
-            tracked_bboxes.append(self.predictions[0].average_bbox())
-        else:
-            for i,x in enumerate(coords):
-                diff = np.subtract(x,measurements)
-                cost[i,:] = np.sqrt(np.sum(np.power(diff,2),axis=1))
-
-            row_ind, col_ind = linear_sum_assignment(cost)
-
-            
-            for i,x in enumerate(row_ind):
-                val = measurements[col_ind[i]]
-                #self.predictions[x].kalman.correct(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
-
-                self.predictions[x].add_bbox(bboxes[x])
-
-                #print("Z:", val)
-                #print("Measurement")
-                self.predictions[x].measurement(np.array([[np.float32(val[0])],[np.float32(val[1])]]))
-                #self.predictions[x].update_prediction()
-                tracked_bboxes.append(self.predictions[x].average_bbox())
-                
-
-        return tracked_bboxes
 
     def associate(self,measurements):
-        print(len(measurements))
-        print(len(self.predictions))
         cost = np.zeros((len(self.predictions),len(measurements)))
         coords = self.get_pred_coords()
 
@@ -109,18 +43,6 @@ class Tracker():
         #np.delete(row_ind, to_remove_r, None)
         #np.delete(col_ind, to_remove_c, None)
         return row_ind,col_ind
-
-
-
-    def no_detections(self):
-        for x in self.predictions:
-            x.counter += 1
-
-    def get_pred_coords(self):
-        coords = []
-        for x in self.predictions:
-            coords.append([x.state[0],x.state[1]])
-        return coords
 
     def get_model_image(self,image):
         hsv = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
@@ -171,15 +93,12 @@ class Tracker():
         ret, track_window = cv2.meanShift(dst, track_window, term_crit)
         x,y,w,h = track_window
 
-        #out_img = copy.copy(image)
-        #cv2.rectangle(out_img, (x,y), (x+w,y+h), (0,0,255), 6)
-        #cv2.imshow("cam",out_img)
-        #cv2.waitKey(0)
-
         return [(x,y), (x+w,y+h)]
 
 
-
+#
+# TrackedObject class, for storing tracked car state info and Kalman filter variables
+#
 class TrackedObject:
     def __init__(self,center_x,center_y, histogramModel):
         self.init_kalman_filter()
@@ -192,33 +111,28 @@ class TrackedObject:
         
 
     def init_kalman_filter(self):
-        # Measurement model
-        self.H = np.array([[1,0,0,0],[0,1,0,0]],np.float32)
-        # Covariance
-        self.P = np.array([[0,0,0,0],[0,0,0,0],[0,0,1000,0],[0,0,0,1000]],np.float32)
-        # Motion model
-        self.F = np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]],np.float32)
-        # Measurement covariance
-        self.R = np.array([[10,0],[0,10]],np.float32)
+        #state 4 values:(x,y,v_x, v_y)
+        #measurement 2 values:(x,y)
+        
+        self.H = np.array([[1,0,0,0],[0,1,0,0]],np.float32)# Measurement function
+        self.P = np.array([[0,0,0,0],[0,0,0,0],[0,0,1000,0],[0,0,0,1000]],np.float32) #uncertainty covariance
+        self.F = np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]],np.float32)# State transition function
+        self.R = np.array([[10,0],[0,10]],np.float32) #measurement uncertainty
         self.I = np.identity(4)
 
 
     def predict(self):
         # prediction
-        self.state = np.matmul(self.F,self.state) #+ u
+        self.state = np.matmul(self.F,self.state) 
         self.P = np.matmul(np.matmul(self.F,self.P),np.transpose(self.F))
         return self.state
 
     def measurement(self,z):
-        #print("Before")
-        #print(self.state)
         y = z - np.matmul(self.H,self.state)
         S = np.matmul(np.matmul(self.H,self.P),self.H.transpose()) + self.R
         K = np.matmul(np.matmul(self.P,np.transpose(self.H)),inv(S))
         self.state = self.state + np.matmul(K,y)
         self.P = np.matmul((self.I - np.matmul(K,self.H)),self.P)
-        #print("After")
-        #print(self.state)
         return self.state
 
     def add_bbox(self,bbox):

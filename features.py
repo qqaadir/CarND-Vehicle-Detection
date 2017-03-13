@@ -2,6 +2,10 @@ import numpy as np
 import cv2
 from skimage.feature import hog
 
+#
+# Functions for extracting features from images
+#
+
 def convert_color(img, conv='BGR2YCrCb'):
     if conv == 'BGR2YCrCb':
         return cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
