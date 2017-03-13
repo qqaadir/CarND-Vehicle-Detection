@@ -1,6 +1,9 @@
 # Vehicle Detection
 [![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
 
+[//]: # (Image References)
+[image1]: ./examples/scale1.5.jpg
+[image2]: ./examples/scale2.jpg
 ---
 
 **Vehicle Detection Project**
@@ -14,64 +17,42 @@ The goals / steps of this project are the following:
 * Run your pipeline on a video stream (start with the test_video.mp4 and later implement on full project_video.mp4) and create a heat map of recurring detections frame by frame to reject outliers and follow detected vehicles.
 * Estimate a bounding box for vehicles detected.
 
-[//]: # (Image References)
-[image1]: ./examples/car_not_car.png
-[image2]: ./examples/HOG_example.jpg
-[image3]: ./examples/sliding_windows.jpg
-[image4]: ./examples/sliding_window.jpg
-[image5]: ./examples/bboxes_and_heat.png
-[image6]: ./examples/labels_map.png
-[image7]: ./examples/output_bboxes.png
-[video1]: ./project_video.mp4
-
-## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
-###Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
-
 ---
-###Writeup / README
-
-####1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Vehicle-Detection/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
-
-You're reading it!
+##Writeup / README:
 
 ###Histogram of Oriented Gradients (HOG)
 
 ####1. Explain how (and identify where in your code) you extracted HOG features from the training images.
 
-The code for this step is contained in the first code cell of the IPython notebook (or in lines # through # of the file called `some_file.py`).  
+- In the Detector class in detector.py the is a function `train` that calls the `extract_features` function from features.py
+- The `extract_features` function uses the skimage function `hog` to extract hog feature vectors from all the images at the file path passed in to the imgs parameter
 
-I started by reading in all the `vehicle` and `non-vehicle` images.  Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
-
-![alt text][image1]
-
-I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
-
-Here is an example using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
-
-
-![alt text][image2]
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
-I tried various combinations of parameters and...
+- After testing I settled on using all the channels from the image in YCrCb colorspace by concatenating the hog features extracted from each channel
+- Also after testing I found that using 18 orientations, 8 pixels per cell and 2 cells per block gave me the best results 
 
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-I trained a linear SVM using...
+- In the Detector class in detector.py the is a function `train` is used for training a linear SVM
+- The features used are a concatenation of the hog features described above, with the color histogram (48 bins) and the spatial color features (32X32)
+- Featurs were normalized using the sklearn `StandardScalar` class
+- 20% of the training images were used for validation and were split using the sklearn `train_test_split` function
 
 ###Sliding Window Search
 
 ####1. Describe how (and identify where in your code) you implemented a sliding window search.  How did you decide what scales to search and how much to overlap windows?
 
-I decided to search random window positions at random scales all over the image and came up with this (ok just kidding I didn't actually ;):
-
-![alt text][image3]
+- I used the code provided in the lectures for the sliding window search. The `find_cars` function in the Detector class in detector.py shows this implementation. 
+- For overlap I went with 75% overlap (2 cells per step), as this gave me the the best results. Anything lower did not give very reliable results.
+- For scales I ended up using two (1.5,2) in the `multi_scale_detection` function in detector.py. This combination allows recognizes all the car close to the camera, and will sometimes pick up cars way ahead. 
 
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
-Ultimately I searched on two scales using YCrCb 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result.  Here are some example images:
-
-![alt text][image4]
+- I used the YCrCb colorspace and used a combination of HOG, color histogram and color spatial information for features. I also normalized the features. Below are some example detections
+![alt text][image1]
+![alt text][image2]
 ---
 
 ### Video Implementation
